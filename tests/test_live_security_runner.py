@@ -384,3 +384,64 @@ def test_local_launcher_does_not_evaluate_env_or_load_admin_keys(monkeypatch, tm
     assert live.os.environ["SUPABASE_URL"] == "https://environment-wins.invalid"
     assert live.os.environ["SUPABASE_PUBLISHABLE_KEY"] == "sb_publishable_$(not-executed)"
     assert "SUPABASE_SERVICE_ROLE_KEY" not in live.os.environ
+
+
+@pytest.mark.parametrize("wrapped", [False, True])
+@pytest.mark.parametrize(
+    ("reason", "expected"),
+    [
+        (live.ssl.SSLCertVerificationError(1, KEY), "TLS_CERT_VERIFY_FAILED"),
+        (live.ssl.SSLError(1, KEY), "TLS_ERROR"),
+        (live.socket.gaierror(-2, KEY), "DNS_LOOKUP_FAILED"),
+        (TimeoutError(KEY), "CONNECTION_TIMEOUT"),
+        (ConnectionRefusedError(KEY), "CONNECTION_REFUSED"),
+        (ConnectionResetError(KEY), "CONNECTION_RESET"),
+        ("Tunnel connection failed: 407 " + KEY, "PROXY_TUNNEL_FAILED"),
+        (OSError(KEY), "TRANSPORT_ERROR"),
+    ],
+)
+def test_network_classification_does_not_reveal_exception_text(reason, expected, wrapped):
+    error = URLError(reason) if wrapped else reason
+    assert live.transport_failure_code(error) == expected
+
+
+@pytest.mark.parametrize("tls_failure", [False, True])
+def test_connection_diagnostic_is_read_only_and_redacts_settings(
+    configured,
+    monkeypatch,
+    capsys,
+    tls_failure,
+):
+    monkeypatch.setitem(sys.modules, "live_security", live)
+    loader_spec = importlib.util.spec_from_file_location(
+        "launch_live_security", ROOT / "supabase/tests/launch_live_security.py"
+    )
+    loader = importlib.util.module_from_spec(loader_spec)
+    monkeypatch.setitem(sys.modules, loader_spec.name, loader)
+    loader_spec.loader.exec_module(loader)
+    spec = importlib.util.spec_from_file_location(
+        "connection_diagnostic", ROOT / "supabase/tests/diagnose_connection.py"
+    )
+    diagnostic = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(diagnostic)
+    monkeypatch.setattr(diagnostic, "load_environment", lambda path: None)
+    monkeypatch.setattr(diagnostic, "getproxies", lambda: {"https": "http://secret-proxy.invalid"})
+    monkeypatch.setenv("SSL_CERT_FILE", "secret-local-ca-path")
+    calls = []
+
+    class Opener:
+        def open(self, request, timeout):
+            calls.append((request.method, urlsplit(request.full_url).path))
+            assert request.get_header("Authorization") is None
+            if tls_failure:
+                raise URLError(live.ssl.SSLCertVerificationError(1, KEY))
+            return Response(200, {"sensitive_body": KEY + str(TOKENS)})
+
+    use_fake_api(monkeypatch, Opener())
+    assert diagnostic.main() == (2 if tls_failure else 0)
+    assert calls == [("GET", "/auth/v1/settings")]
+    output = capsys.readouterr().out
+    assert ("TLS_CERT_VERIFY_FAILED" if tls_failure else "HTTP_RESPONSE=200") in output
+    assert KEY not in output
+    assert "secret-proxy.invalid" not in output
+    assert "secret-local-ca-path" not in output

@@ -13,6 +13,8 @@ import json
 import os
 import re
 import secrets
+import socket
+import ssl
 import sys
 import uuid
 from dataclasses import dataclass, field
@@ -73,6 +75,26 @@ class SetupError(Exception):
 
 class NetworkFailure(Exception):
     pass
+
+
+def transport_failure_code(error):
+    """Classify the failure without exposing free-form exception text or URLs."""
+    reason = error.reason if isinstance(error, URLError) else error
+    if isinstance(reason, ssl.SSLCertVerificationError):
+        return "TLS_CERT_VERIFY_FAILED"
+    if isinstance(reason, ssl.SSLError):
+        return "TLS_ERROR"
+    if isinstance(reason, socket.gaierror):
+        return "DNS_LOOKUP_FAILED"
+    if isinstance(reason, TimeoutError):
+        return "CONNECTION_TIMEOUT"
+    if isinstance(reason, ConnectionRefusedError):
+        return "CONNECTION_REFUSED"
+    if isinstance(reason, ConnectionResetError):
+        return "CONNECTION_RESET"
+    if isinstance(reason, str) and "tunnel connection failed" in reason.lower():
+        return "PROXY_TUNNEL_FAILED"
+    return "TRANSPORT_ERROR"
 
 
 class StopScenario(Exception):
@@ -183,8 +205,11 @@ class Client:
             except ValueError, UnicodeError:
                 body = None
             return Reply(status, body)
-        except URLError, OSError, TimeoutError:
-            raise NetworkFailure("Network/TLS request failed; details suppressed.") from None
+        except (URLError, OSError, TimeoutError) as error:
+            code = transport_failure_code(error)
+            raise NetworkFailure(
+                "Network/TLS request failed [" + code + "]; details suppressed."
+            ) from None
 
     def table(self, method, name, *, filters=None, columns=None, payload=None):
         query = dict(filters or {})

@@ -4,6 +4,7 @@ No admin key. Leaves test lessons/profile databases for inspection. Never prints
 """
 
 import argparse
+import json
 import threading
 import time
 from pathlib import Path
@@ -118,6 +119,11 @@ def main():
         deadline = time.monotonic() + 20
         while not all(h.connected for h in hints) and time.monotonic() < deadline:
             time.sleep(0.2)
+        if not all(h.connected for h in hints):
+            for label, hint in zip(("A", "B"), hints, strict=True):
+                print("REALTIME_" + label + "=" + json.dumps(hint.diagnostics(), sort_keys=True))
+            if not any(h.rejected for h in hints):
+                raise CloudError("realtime_connection_unverified")
         check("both private Realtime subscriptions authorized", all(h.connected for h in hints))
         outsider_event = threading.Event()
         outsider_hint = RealtimeHints(config, outsider_event.set)
@@ -129,6 +135,7 @@ def main():
         if not outsider_hint.rejected:
             if outsider_hint.connected:
                 raise AssertionError("outsider private subscription was accepted")
+            print("REALTIME_C=" + json.dumps(outsider_hint.diagnostics(), sort_keys=True))
             raise CloudError("realtime_authorization_unverified")
         check("outsider private subscription explicitly refused", not outsider_hint.connected)
         for event in events:

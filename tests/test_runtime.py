@@ -6,7 +6,6 @@ from englishnotes.storage import runtime
 
 
 def test_windows_temp_files_use_data_directory(monkeypatch, tmp_path):
-    monkeypatch.setattr(runtime.sys, "platform", "win32")
     monkeypatch.setattr(runtime, "data_directory", lambda: tmp_path)
     monkeypatch.setattr(tempfile, "tempdir", None)
     monkeypatch.setenv("TEMP", "C:/old-temp")
@@ -14,13 +13,12 @@ def test_windows_temp_files_use_data_directory(monkeypatch, tmp_path):
     runtime.configure_runtime()
     assert tempfile.gettempdir() == str(tmp_path / "temp")
     with tempfile.TemporaryFile() as file:
-        file.write(b"on D data directory")
+        file.write(b"in user data directory")
     assert runtime.os.environ["TEMP"] == str(tmp_path / "temp")
     assert runtime.os.environ["TMP"] == str(tmp_path / "temp")
 
 
-def test_unavailable_d_does_not_fall_back(monkeypatch, tmp_path):
-    monkeypatch.setattr(runtime.sys, "platform", "win32")
+def test_unavailable_profile_does_not_fall_back(monkeypatch, tmp_path):
     unavailable = tmp_path / "unavailable"
     unavailable.write_text("blocked")
     monkeypatch.setattr(runtime, "data_directory", lambda: unavailable)
@@ -32,8 +30,12 @@ def test_unavailable_d_does_not_fall_back(monkeypatch, tmp_path):
     assert unavailable.read_text() == "blocked"
 
 
-def test_other_platforms_keep_existing_runtime(monkeypatch):
-    monkeypatch.setattr(runtime.sys, "platform", "linux")
+def test_runtime_creates_parents(monkeypatch, tmp_path):
+    location = tmp_path / "missing" / "profile"
+    monkeypatch.setattr(runtime, "data_directory", lambda: location)
+    monkeypatch.setattr(tempfile, "tempdir", None)
     monkeypatch.setenv("TEMP", "/existing-temp")
+    monkeypatch.setenv("TMP", "/existing-temp")
     runtime.configure_runtime()
-    assert runtime.os.environ["TEMP"] == "/existing-temp"
+    assert (location / "temp").is_dir()
+    assert tempfile.gettempdir() == str(location / "temp")

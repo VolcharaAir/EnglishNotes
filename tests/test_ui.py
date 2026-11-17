@@ -237,7 +237,7 @@ def test_partial_save_retries_only_unsaved_note(qtbot, window, service, monkeypa
     assert service.list_notes(window.lesson.id)[0].content == "Unsaved note"
 
 
-@pytest.mark.skipif(sys.platform != "linux", reason="Linux isolated XDG bootstrap")
+@pytest.mark.skipif(sys.platform == "darwin", reason="Windows/Linux isolated bootstrap")
 def test_application_bootstrap_creates_database_in_data_directory(tmp_path):
     env = os.environ.copy()
     env["XDG_DATA_HOME"] = str(tmp_path)
@@ -246,6 +246,7 @@ def test_application_bootstrap_creates_database_in_data_directory(tmp_path):
     code = """
 from PySide6.QtCore import QTimer
 from englishnotes import app
+app.legacy_database_path = lambda: None
 original_show = app.MainWindow.show
 def show(self):
     original_show(self)

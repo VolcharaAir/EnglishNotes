@@ -47,22 +47,37 @@ def test_invalid_body_does_not_change_storage(service):
     assert service.list_notes(lesson.id) == [note]
 
 
-@pytest.mark.parametrize("appdata", ["C:/Users/Person/AppData/Local", "relative", ""])
-def test_windows_always_uses_d(monkeypatch, appdata):
+def test_windows_uses_localappdata_without_drive_d(monkeypatch):
     monkeypatch.setattr(paths.sys, "platform", "win32")
-    monkeypatch.setenv("LOCALAPPDATA", appdata)
-    assert paths.database_path().as_posix() == "D:/EnglishNotesData/englishnotes.sqlite3"
+    monkeypatch.setenv("LOCALAPPDATA", "C:/Users/Person/AppData/Local")
+    assert paths.database_path().as_posix() == (
+        "C:/Users/Person/AppData/Local/EnglishNotes/englishnotes.sqlite3"
+    )
 
 
-def test_windows_does_not_use_home_or_cwd(monkeypatch):
+def test_windows_fallback_uses_user_profile(monkeypatch, tmp_path):
     monkeypatch.setattr(paths.sys, "platform", "win32")
     monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    assert paths.data_directory() == tmp_path / "AppData" / "Local" / "EnglishNotes"
 
-    def forbidden():
-        raise AssertionError("Home must never be used")
 
-    monkeypatch.setattr(Path, "home", forbidden)
-    assert paths.data_directory().as_posix() == "D:/EnglishNotesData"
+def test_macos_uses_application_support(monkeypatch, tmp_path):
+    monkeypatch.setattr(paths.sys, "platform", "darwin")
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    assert paths.database_path() == (
+        tmp_path / "Library" / "Application Support" / "EnglishNotes" / "englishnotes.sqlite3"
+    )
+
+
+def test_changing_executable_and_cwd_does_not_change_database(monkeypatch, tmp_path):
+    monkeypatch.setattr(paths.sys, "platform", "linux")
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "profile"))
+    original = paths.database_path()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(paths.sys, "executable", str(tmp_path / "moved" / "EnglishNotes.exe"))
+    monkeypatch.setattr(paths.sys, "_MEIPASS", str(tmp_path / "extracted"), raising=False)
+    assert paths.database_path() == original
 
 
 def test_linux_uses_xdg(monkeypatch, tmp_path):
@@ -76,3 +91,10 @@ def test_relative_data_directory_is_rejected(monkeypatch):
     monkeypatch.setenv("XDG_DATA_HOME", "relative")
     with pytest.raises(StorageError):
         paths.database_path()
+
+
+def test_linux_default_uses_user_share(monkeypatch, tmp_path):
+    monkeypatch.setattr(paths.sys, "platform", "linux")
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    assert paths.data_directory() == tmp_path / ".local" / "share" / "EnglishNotes"

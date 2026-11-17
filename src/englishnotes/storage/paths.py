@@ -8,8 +8,9 @@ from englishnotes.domain.errors import StorageError
 def data_directory() -> Path:
     """Never derive writable data paths from cwd, __file__ or the executable."""
     if sys.platform == "win32":
-        # Explicit user policy: never fall back to the system drive.
-        return Path("D:/EnglishNotesData")
+        local = os.environ.get("LOCALAPPDATA")
+        base = Path(local) if local else Path.home() / "AppData" / "Local"
+        return base / "EnglishNotes"
     if sys.platform == "darwin":
         return Path.home() / "Library" / "Application Support" / "EnglishNotes"
     return Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share"))) / (
@@ -27,3 +28,7 @@ def database_path() -> Path:
     if not absolute:
         raise StorageError("Папка данных должна иметь абсолютный путь.")
     return directory / "englishnotes.sqlite3"
+
+
+def legacy_database_path() -> Path | None:
+    return Path("D:/EnglishNotesData/englishnotes.sqlite3") if sys.platform == "win32" else None

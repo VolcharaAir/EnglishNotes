@@ -36,7 +36,9 @@ def main() -> int:
             legacy_lock = QLockFile(str(legacy.parent / "englishnotes.lock"))
             legacy_lock.setStaleLockTime(0)
             if not legacy_lock.tryLock(0):
-                raise StorageError("Закройте старую версию EnglishNotes перед переносом данных.")
+                raise StorageError(
+                    "Закройте старую версию EnglishNotes и проверьте доступ к её папке данных."
+                )
         migrated = migrate_legacy_database(legacy, path)
         database = Database(path)
         window = MainWindow(NotesService(SQLiteNotesRepository(database)))

@@ -11,7 +11,7 @@
 
 ```text
 .venv/bin/python -m pytest -q
-63 passed in 2.87s
+64 passed in 2.86s
 
 .venv/bin/ruff check src tests tools packaging
 All checks passed!

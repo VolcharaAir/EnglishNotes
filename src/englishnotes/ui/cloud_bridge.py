@@ -19,6 +19,8 @@ from PySide6.QtWidgets import (
 from englishnotes.auth.vault import SystemVault
 from englishnotes.cloud.worker import CloudWorker
 from englishnotes.storage.cloud_store import CloudStore
+from englishnotes.ui.icons import icon
+from englishnotes.ui.style import tone
 
 
 class CloudBridge(QObject):
@@ -31,32 +33,45 @@ class CloudBridge(QObject):
         self.worker = None
         self.vault = None
         self.refreshing = False
-        side = window.new_lesson_button.parentWidget().layout()
         self.create_button = QPushButton("Создать занятие")
         self.join_button = QPushButton("Подключиться к занятию")
-        self.invite_button = QPushButton("Пригласить участника")
-        self.finish_button = QPushButton("Завершить занятие")
+        self.invite_button = QPushButton("Пригласить")
+        self.finish_button = QPushButton("Завершить")
         self.conflict_button = QPushButton("Разрешить конфликт")
         self.status = QLabel("Облако: ожидание подключения")
+        self.status.setObjectName("syncStatus")
         self.status.setWordWrap(True)
         self.status.setTextFormat(Qt.TextFormat.PlainText)
         self.pending = QLabel()
+        self.pending.setObjectName("syncPending")
         self.pending.setWordWrap(True)
         window.new_lesson_button.setToolTip("Создать занятие только на этом компьютере")
         self.conflict_button.setToolTip("Сравнить версии при одновременных изменениях")
-        for index, widget in enumerate(
-            (
-                self.create_button,
-                self.join_button,
-                self.invite_button,
-                self.finish_button,
-                self.conflict_button,
-                self.status,
-                self.pending,
-            ),
-            5,
+        self.create_button.setObjectName("primary")
+        self.create_button.setIcon(icon("users", "#151b33"))
+        self.join_button.setIcon(icon("join"))
+        self.invite_button.setIcon(icon("users"))
+        self.invite_button.setAccessibleName("Пригласить участника")
+        self.invite_button.setToolTip("Показать код приглашения")
+        self.finish_button.setIcon(icon("finish"))
+        self.finish_button.setAccessibleName("Завершить занятие")
+        self.conflict_button.setObjectName("warning")
+        self.conflict_button.setIcon(icon("conflict", "#edc183"))
+        for button in (self.invite_button, self.finish_button):
+            button.setProperty("variant", "ghost")
+            window.lesson_actions.addWidget(button)
+        window.session_actions.insertWidget(0, self.create_button)
+        window.session_actions.addWidget(self.join_button)
+        for widget in (self.status, self.pending, self.conflict_button):
+            window.sync_details.addWidget(widget)
+        for button in (
+            self.create_button,
+            self.join_button,
+            self.invite_button,
+            self.finish_button,
+            self.conflict_button,
         ):
-            side.insertWidget(index, widget)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.create_button.clicked.connect(self.create)
         self.join_button.clicked.connect(self.join)
         self.invite_button.clicked.connect(self.invite)
@@ -85,7 +100,8 @@ class CloudBridge(QObject):
         self.update_controls()
 
     def on_state(self, code, message):
-        self.status.setText(message)
+        self.status.setText("● Подключено к облаку" if code == "online" else message)
+        tone(self.status, "online" if code == "online" else "warning")
 
     def wake(self):
         if self.worker:
@@ -156,8 +172,11 @@ class CloudBridge(QObject):
             dialog = QDialog(self.window)
             dialog.setWindowTitle("Приглашение на занятие")
             layout = QVBoxLayout(dialog)
+            layout.setContentsMargins(24, 24, 24, 24)
+            layout.setSpacing(14)
             layout.addWidget(QLabel("Код действует до указанного времени и используется один раз."))
             value = QLineEdit(invitation["code"])
+            value.setObjectName("invitationCode")
             value.setReadOnly(True)
             value.setMinimumWidth(600)
             layout.addWidget(value)
@@ -170,9 +189,12 @@ class CloudBridge(QObject):
                 )
             )
             copy = QPushButton("Скопировать код")
+            copy.setObjectName("primary")
             copy.clicked.connect(lambda: self.copy_code(value.text()))
+            copy.clicked.connect(lambda: copy.setText("Код скопирован"))
             layout.addWidget(copy)
             close = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+            close.button(QDialogButtonBox.StandardButton.Close).setText("Закрыть")
             close.rejected.connect(dialog.reject)
             layout.addWidget(close)
             dialog.exec()
@@ -264,9 +286,18 @@ class CloudBridge(QObject):
         )
         pending = self.store.rows("SELECT count(*) AS total FROM cloud_outbox")[0]["total"]
         conflicts = self.store.rows("SELECT count(*) AS total FROM cloud_conflicts")[0]["total"]
-        self.pending.setText(f"Ожидает отправки: {pending} • Конфликтов: {conflicts}")
+        self.pending.setText(f"К отправке: {pending} · Конфликты: {conflicts}")
+        tone(self.pending, "warning" if pending or conflicts else "neutral")
         self.conflict_button.setEnabled(bool(conflicts))
+        self.conflict_button.setVisible(bool(conflicts))
         closed = bool(scope and scope["status"] == "closed")
+        kind = (
+            "Занятие завершено"
+            if closed
+            else ("Совместное занятие" if scope else "Локальное занятие")
+        )
+        self.window.lesson_kind.setText(kind if lesson else "Ваши занятия")
+        tone(self.window.lesson_kind, "closed" if closed else "active")
         self.window.lesson_title.setReadOnly(bool(scope))
         self.window.note_title.setReadOnly(closed)
         self.window.note_body.setReadOnly(closed)
@@ -278,7 +309,9 @@ class CloudBridge(QObject):
             )
             if meta and meta[0]["author_id"]:
                 author = "Вы" if meta[0]["author_id"] == self.uid else "Другой участник"
-                self.window.note_meta.setText("Автор: " + author)
+                self.window.author_meta.setText("Автор: " + author)
+            else:
+                self.window.author_meta.setText("Локальная заметка")
 
     def resolve(self):
         if not self.window.flush_changes():
@@ -296,6 +329,8 @@ class CloudBridge(QObject):
         dialog = QDialog(self.window)
         dialog.setWindowTitle("Одновременные изменения")
         layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
         layout.addWidget(
             QLabel(
                 "Выберите версию для продолжения. "
@@ -303,7 +338,7 @@ class CloudBridge(QObject):
             )
         )
         columns = QHBoxLayout()
-        for text in (
+        versions = (
             local["title"]
             + "\n\n"
             + local["content"]
@@ -312,10 +347,16 @@ class CloudBridge(QObject):
             + "\n\n"
             + remote["content"]
             + ("\n[Удалено участником]" if remote["deleted_at"] else ""),
-        ):
+        )
+        for heading_text, text in zip(("МОЯ ВЕРСИЯ", "ВЕРСИЯ УЧАСТНИКА"), versions, strict=True):
+            column = QVBoxLayout()
+            heading = QLabel(heading_text)
+            heading.setObjectName("eyebrow")
+            column.addWidget(heading)
             editor = QPlainTextEdit(text)
             editor.setReadOnly(True)
-            columns.addWidget(editor)
+            column.addWidget(editor)
+            columns.addLayout(column)
         layout.addLayout(columns)
         buttons = QHBoxLayout()
 
@@ -331,6 +372,8 @@ class CloudBridge(QObject):
 
         for text, keep in (("Оставить мою", True), ("Принять вторую", False)):
             button = QPushButton(text)
+            if keep:
+                button.setObjectName("primary")
             button.clicked.connect(lambda checked=False, k=keep: choose(k))
             buttons.addWidget(button)
         cancel = QPushButton("Отмена")

@@ -3,6 +3,7 @@ from datetime import datetime
 from PySide6.QtCore import QSignalBlocker, Qt, QTimer
 from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
+    QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -22,7 +23,9 @@ from PySide6.QtWidgets import (
 from englishnotes.application.service import NotesService
 from englishnotes.domain.errors import EnglishNotesError
 from englishnotes.domain.models import Lesson, Note
-from englishnotes.ui.style import STYLE
+from englishnotes.ui.delegates import EntryDelegate
+from englishnotes.ui.icons import icon
+from englishnotes.ui.style import apply_theme
 
 
 class MainWindow(QMainWindow):
@@ -37,10 +40,10 @@ class MainWindow(QMainWindow):
         self._lesson_dirty = False
         self._note_dirty = False
         self._loading = False
+        apply_theme(QApplication.instance())
         self.setWindowTitle("EnglishNotes[*]")
-        self.resize(1180, 760)
-        self.setMinimumSize(840, 560)
-        self.setStyleSheet(STYLE)
+        self.resize(1280, 800)
+        self.setMinimumSize(900, 600)
         self.save_timer = QTimer(self)
         self.save_timer.setSingleShot(True)
         self.save_timer.timeout.connect(self.flush_changes)
@@ -56,46 +59,112 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(splitter)
         sidebar = QFrame()
         sidebar.setObjectName("sidebar")
+        sidebar.setMinimumWidth(256)
+        sidebar.setMaximumWidth(340)
         side = QVBoxLayout(sidebar)
-        side.setContentsMargins(20, 24, 20, 18)
+        side.setContentsMargins(18, 24, 18, 18)
+        side.setSpacing(12)
+
+        brand_row = QHBoxLayout()
+        brand_row.setSpacing(11)
+        mark = QLabel("en")
+        mark.setObjectName("brandMark")
+        mark.setFixedSize(38, 38)
+        mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        brand_row.addWidget(mark)
+        brand_text = QVBoxLayout()
+        brand_text.setSpacing(3)
         brand = QLabel("EnglishNotes")
         brand.setObjectName("brand")
-        side.addWidget(brand)
-        subtitle = QLabel("Заметки к занятиям английским")
-        subtitle.setWordWrap(True)
-        subtitle.setObjectName("eyebrow")
-        side.addWidget(subtitle)
-        side.addSpacing(22)
-        self.new_lesson_button = QPushButton("+ Новое занятие")
-        self.new_lesson_button.setObjectName("primary")
-        side.addWidget(self.new_lesson_button)
-        side.addSpacing(18)
-        history = QLabel("ИСТОРИЯ ЗАНЯТИЙ")
-        history.setObjectName("eyebrow")
-        side.addWidget(history)
+        brand_text.addWidget(brand)
+        subtitle = QLabel("Заметки к английскому")
+        subtitle.setObjectName("subtitle")
+        brand_text.addWidget(subtitle)
+        brand_row.addLayout(brand_text, 1)
+        side.addLayout(brand_row)
+        side.addSpacing(14)
+
+        self.session_actions = QVBoxLayout()
+        self.session_actions.setSpacing(8)
+        self.new_lesson_button = QPushButton("Локальное занятие")
+        self.new_lesson_button.setIcon(icon("plus"))
+        self.new_lesson_button.setToolTip("Новое занятие на этом компьютере · Ctrl+N")
+        self.new_lesson_button.setProperty("variant", "ghost")
+        self.new_lesson_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.session_actions.addWidget(self.new_lesson_button)
+        side.addLayout(self.session_actions)
+        side.addSpacing(12)
+        history = QHBoxLayout()
+        heading = QLabel("ИСТОРИЯ ЗАНЯТИЙ")
+        heading.setObjectName("eyebrow")
+        history.addWidget(heading)
+        history.addStretch()
+        self.lesson_count = QLabel("0")
+        self.lesson_count.setObjectName("counter")
+        history.addWidget(self.lesson_count)
+        side.addLayout(history)
         self.lesson_list = QListWidget()
         self.lesson_list.setAccessibleName("История занятий")
+        self.lesson_list.setItemDelegate(EntryDelegate("lesson", self.lesson_list))
+        self.lesson_list.setSpacing(2)
+        self.lesson_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.lesson_list.setMouseTracking(True)
         side.addWidget(self.lesson_list, 1)
-        local = QLabel("Локальная копия\nДоступна без интернета")
-        local.setObjectName("eyebrow")
-        side.addWidget(local)
+
+        sync_panel = QFrame()
+        sync_panel.setObjectName("syncPanel")
+        sync = QVBoxLayout(sync_panel)
+        sync.setContentsMargins(13, 13, 13, 13)
+        sync.setSpacing(8)
+        sync_heading = QLabel("СОХРАНЕНИЕ И СВЯЗЬ")
+        sync_heading.setObjectName("eyebrow")
+        sync.addWidget(sync_heading)
+        self.sync_details = QVBoxLayout()
+        self.sync_details.setSpacing(8)
+        sync.addLayout(self.sync_details)
+        local = QLabel("Локальная копия доступна без интернета")
+        local.setObjectName("subtitle")
+        local.setWordWrap(True)
+        sync.addWidget(local)
+        side.addWidget(sync_panel)
         splitter.addWidget(sidebar)
 
         main = QWidget()
+        main.setObjectName("workspace")
         layout = QVBoxLayout(main)
-        layout.setContentsMargins(24, 24, 24, 18)
+        layout.setContentsMargins(28, 24, 28, 16)
+        layout.setSpacing(12)
+        heading_row = QHBoxLayout()
+        eyebrow = QLabel("РАБОЧЕЕ ПРОСТРАНСТВО")
+        eyebrow.setObjectName("eyebrow")
+        heading_row.addWidget(eyebrow)
+        heading_row.addStretch()
+        self.lesson_kind = QLabel("Ваши занятия")
+        self.lesson_kind.setObjectName("lessonKind")
+        heading_row.addWidget(self.lesson_kind)
+        layout.addLayout(heading_row)
         self.lesson_title = QLineEdit()
         self.lesson_title.setObjectName("lessonTitle")
         self.lesson_title.setAccessibleName("Название занятия")
-        self.lesson_title.setPlaceholderText("Название занятия")
+        self.lesson_title.setPlaceholderText("Начнём новое занятие?")
         self.lesson_title.setMaxLength(200)
         self.lesson_title.setEnabled(False)
         layout.addWidget(self.lesson_title)
         top = QHBoxLayout()
-        self.save_status = QLabel("Создайте первое занятие")
+        top.setSpacing(8)
+        self.save_status = QLabel("Создайте занятие или подключитесь по приглашению")
         self.save_status.setObjectName("saveStatus")
+        self.save_status.setWordWrap(True)
         top.addWidget(self.save_status, 1)
-        self.new_note_button = QPushButton("+ Добавить заметку")
+        self.lesson_actions = QHBoxLayout()
+        self.lesson_actions.setSpacing(6)
+        top.addLayout(self.lesson_actions)
+        self.new_note_button = QPushButton("Заметка")
+        self.new_note_button.setObjectName("primary")
+        self.new_note_button.setIcon(icon("plus", "#151b33"))
+        self.new_note_button.setToolTip("Добавить заметку · Ctrl+Shift+N")
+        self.new_note_button.setAccessibleName("Добавить заметку")
+        self.new_note_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.new_note_button.setEnabled(False)
         top.addWidget(self.new_note_button)
         layout.addLayout(top)
@@ -115,63 +184,106 @@ class MainWindow(QMainWindow):
         self.pages = QStackedWidget()
         empty = QWidget()
         empty_layout = QVBoxLayout(empty)
+        empty_layout.setSpacing(16)
         empty_layout.addStretch()
-        self.empty_label = QLabel(
-            "Начните с нового занятия\nВаши заметки сохранятся автоматически."
-        )
+        empty_symbol = QLabel()
+        empty_symbol.setPixmap(icon("book", "#8b9ad8", 52).pixmap(52, 52))
+        empty_symbol.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_layout.addWidget(empty_symbol)
+        self.empty_label = QLabel("Хорошие занятия начинаются\nс чистой страницы")
         self.empty_label.setObjectName("empty")
         self.empty_label.setWordWrap(True)
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         empty_layout.addWidget(self.empty_label)
+        empty_hint = QLabel("Новые слова, правила и маленькие открытия — всё в одном месте.")
+        empty_hint.setObjectName("emptyHint")
+        empty_hint.setWordWrap(True)
+        empty_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_layout.addWidget(empty_hint)
         empty_layout.addStretch()
         self.pages.addWidget(empty)
 
         workspace = QSplitter(Qt.Orientation.Horizontal)
         notes_panel = QWidget()
+        notes_panel.setMinimumWidth(150)
         notes_layout = QVBoxLayout(notes_panel)
-        notes_layout.setContentsMargins(0, 12, 12, 0)
-        label = QLabel("ЗАМЕТКИ ЗАНЯТИЯ")
+        notes_layout.setContentsMargins(0, 10, 16, 0)
+        notes_layout.setSpacing(12)
+        notes_header = QHBoxLayout()
+        label = QLabel("ЗАМЕТКИ")
         label.setObjectName("eyebrow")
-        notes_layout.addWidget(label)
+        notes_header.addWidget(label)
+        notes_header.addStretch()
+        self.note_count = QLabel("0")
+        self.note_count.setObjectName("counter")
+        notes_header.addWidget(self.note_count)
+        notes_layout.addLayout(notes_header)
         self.note_list = QListWidget()
         self.note_list.setAccessibleName("Заметки занятия")
+        self.note_list.setItemDelegate(EntryDelegate("note", self.note_list))
+        self.note_list.setMouseTracking(True)
+        self.note_list.setSpacing(2)
+        self.note_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         notes_layout.addWidget(self.note_list)
         workspace.addWidget(notes_panel)
+
         editor_panel = QWidget()
         editor = QVBoxLayout(editor_panel)
-        editor.setContentsMargins(16, 12, 0, 0)
+        editor.setContentsMargins(18, 0, 0, 0)
+        editor.setSpacing(12)
+        surface = QFrame()
+        surface.setObjectName("editorSurface")
+        document = QVBoxLayout(surface)
+        document.setContentsMargins(20, 10, 20, 14)
+        document.setSpacing(0)
         self.note_title = QLineEdit()
         self.note_title.setObjectName("noteTitle")
         self.note_title.setAccessibleName("Название заметки")
         self.note_title.setPlaceholderText("Название заметки")
         self.note_title.setMaxLength(200)
-        editor.addWidget(self.note_title)
+        document.addWidget(self.note_title)
+        divider = QFrame()
+        divider.setObjectName("editorDivider")
+        divider.setFixedHeight(1)
+        document.addWidget(divider)
         self.note_body = QPlainTextEdit()
+        self.note_body.setObjectName("noteBody")
         self.note_body.setAccessibleName("Текст заметки")
         self.note_body.setPlaceholderText(
-            "Новые слова, примеры, правила и вопросы…\n\n"
-            "Пишите здесь — изменения сохраняются автоматически."
+            "Новые слова, примеры, правила и вопросы…\n\nПишите свободно."
         )
-        editor.addWidget(self.note_body, 1)
+        document.addWidget(self.note_body, 1)
+        editor.addWidget(surface, 1)
         bottom = QHBoxLayout()
+        self.author_meta = QLabel("Локальная заметка")
+        self.author_meta.setObjectName("authorMeta")
+        bottom.addWidget(self.author_meta)
+        bottom.addStretch()
         self.note_meta = QLabel()
-        self.note_meta.setObjectName("eyebrow")
-        bottom.addWidget(self.note_meta, 1)
-        self.delete_note_button = QPushButton("Удалить заметку")
+        self.note_meta.setObjectName("subtitle")
+        bottom.addWidget(self.note_meta)
+        self.delete_note_button = QPushButton("Удалить")
+        self.delete_note_button.setAccessibleName("Удалить заметку")
+        self.delete_note_button.setToolTip("Удалить заметку")
+        self.delete_note_button.setIcon(icon("trash", "#e9a2ad", 17))
+        self.delete_note_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.delete_note_button.setObjectName("delete")
         bottom.addWidget(self.delete_note_button)
         editor.addLayout(bottom)
         workspace.addWidget(editor_panel)
-        workspace.setSizes([210, 570])
+        workspace.setSizes([190, 650])
         workspace.setCollapsible(0, False)
         workspace.setCollapsible(1, False)
         self.pages.addWidget(workspace)
         layout.addWidget(self.pages, 1)
         splitter.addWidget(main)
-        splitter.setSizes([280, 900])
+        splitter.setSizes([282, 998])
         splitter.setCollapsible(0, False)
         splitter.setCollapsible(1, False)
-        self.statusBar().showMessage("Изменения хранятся на этом компьютере")
+        self.statusBar().showMessage("Сохраняется на вашем компьютере")
+        shortcut = QLabel("Ctrl+S  Сохранить")
+        shortcut.setObjectName("shortcut")
+        self.statusBar().addPermanentWidget(shortcut)
 
     def _connect_actions(self) -> None:
         self.new_lesson_button.clicked.connect(self.create_lesson)
@@ -203,6 +315,7 @@ class MainWindow(QMainWindow):
 
     def _reload_lessons(self, selected_id: str | None = None) -> None:
         lessons = self.service.list_lessons()
+        self.lesson_count.setText(str(len(lessons)))
         with QSignalBlocker(self.lesson_list):
             self.lesson_list.clear()
             for lesson in lessons:
@@ -217,6 +330,7 @@ class MainWindow(QMainWindow):
         return f"{lesson.title or 'Занятие без названия'}\n{date}"
 
     def _fill_notes(self, notes: list[Note], selected_id: str | None = None) -> None:
+        self.note_count.setText(str(len(notes)))
         self.note = None
         with QSignalBlocker(self.note_list):
             self.note_list.clear()
@@ -225,7 +339,9 @@ class MainWindow(QMainWindow):
                 item.setData(Qt.ItemDataRole.UserRole, note)
                 self.note_list.addItem(item)
         self.pages.setCurrentIndex(1 if notes else 0)
-        self.empty_label.setText("В этом занятии пока нет заметок.\nНажмите «Добавить заметку».")
+        self.empty_label.setText(
+            "В этом занятии пока нет заметок.\nДобавьте первую кнопкой «+ Заметка»."
+        )
         self._select_id(self.note_list, selected_id)
 
     def _select_lesson(self, current: QListWidgetItem | None, previous=None) -> None:
@@ -248,9 +364,13 @@ class MainWindow(QMainWindow):
         self.lesson_title.setText(lesson.title)
         self._loading = False
         self.lesson_title.setEnabled(True)
+        self.lesson_kind.setText("Локальное занятие")
         self.new_note_button.setEnabled(True)
         self.save_status.setText("Все изменения сохранены на компьютере")
         self._fill_notes(notes)
+        bridge = getattr(self, "cloud_bridge", None)
+        if bridge:
+            bridge.update_controls()
 
     def _select_note(self, current: QListWidgetItem | None, previous=None) -> None:
         if current is None:
@@ -260,11 +380,15 @@ class MainWindow(QMainWindow):
                 self.note_list.setCurrentItem(previous)
             return
         self.note = current.data(Qt.ItemDataRole.UserRole)
+        self.author_meta.setText("Локальная заметка")
         self._loading = True
         self.note_title.setText(self.note.title)
         self.note_body.setPlainText(self.note.content)
         self._loading = False
         self._update_meta()
+        bridge = getattr(self, "cloud_bridge", None)
+        if bridge:
+            bridge.update_controls()
 
     def _update_meta(self) -> None:
         if self.note:

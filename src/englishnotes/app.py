@@ -12,10 +12,12 @@ from englishnotes.storage.paths import database_path, legacy_database_path
 from englishnotes.storage.repository import SQLiteNotesRepository
 from englishnotes.storage.runtime import configure_runtime
 from englishnotes.ui.main_window import MainWindow
+from englishnotes.ui.style import apply_theme
 
 
 def main() -> int:
     application = QApplication(sys.argv)
+    apply_theme(application)
     application.setApplicationName("EnglishNotes")
     application.setOrganizationName("EnglishNotes")
     database = None

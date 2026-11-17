@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "englishnotes"
-version = "0.3.0"
+version = "0.3.1"
 description = "Offline-first desktop notes for English lessons"
 requires-python = ">=3.14"
 dependencies = ["PySide6>=6.10,<7", "keyring>=25,<27", "websocket-client>=1.8,<2"]

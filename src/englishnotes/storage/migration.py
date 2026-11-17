@@ -45,7 +45,7 @@ def migrate_legacy_database(source: Path | None, target: Path) -> bool:
                 old.backup(snapshot, pages=256, progress=progress, sleep=0.05)
                 if snapshot.execute("PRAGMA quick_check").fetchone()[0] != "ok":
                     raise StorageError("Проверка старой базы не пройдена. Исходник сохранён.")
-                if snapshot.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
+                if not 1 <= snapshot.execute("PRAGMA user_version").fetchone()[0] <= SCHEMA_VERSION:
                     raise StorageError("Версия старой базы не поддерживается для переноса.")
                 for table, columns in (
                     ("lessons", "id,title,created_at,updated_at,revision,deleted_at"),

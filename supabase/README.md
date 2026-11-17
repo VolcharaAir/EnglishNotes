@@ -1,3 +1,7 @@
+> Этот документ описывает исторический протокол v1. Для Desktop v2 используйте
+> [docs/cloud-desktop.md](../docs/cloud-desktop.md): новая миграция закрывает
+> прямые API и заменяет Postgres Changes на private Broadcast. Не повторяйте v1.
+
 # Первая серверная миграция EnglishNotes
 
 Для отдельного живого теста с тремя реальными anonymous JWT см.

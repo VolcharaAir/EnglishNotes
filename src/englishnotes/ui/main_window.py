@@ -76,7 +76,7 @@ class MainWindow(QMainWindow):
         self.lesson_list = QListWidget()
         self.lesson_list.setAccessibleName("История занятий")
         side.addWidget(self.lesson_list, 1)
-        local = QLabel("Локальный режим\nРаботает без интернета")
+        local = QLabel("Локальная копия\nДоступна без интернета")
         local.setObjectName("eyebrow")
         side.addWidget(local)
         splitter.addWidget(sidebar)
@@ -377,6 +377,10 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         if self.flush_changes():
-            event.accept()
+            bridge = getattr(self, "cloud_bridge", None)
+            if bridge is None or bridge.request_close():
+                event.accept()
+            else:
+                event.ignore()
         else:
             event.ignore()

@@ -4,6 +4,7 @@ from PySide6.QtCore import QLockFile
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from englishnotes.application.service import NotesService
+from englishnotes.cloud.config import CloudConfig
 from englishnotes.domain.errors import EnglishNotesError, StorageError
 from englishnotes.storage.database import Database
 from englishnotes.storage.migration import migrate_legacy_database
@@ -42,6 +43,13 @@ def main() -> int:
         migrated = migrate_legacy_database(legacy, path)
         database = Database(path)
         window = MainWindow(NotesService(SQLiteNotesRepository(database)))
+        from englishnotes.ui.cloud_bridge import CloudBridge
+
+        try:
+            config = CloudConfig.load()
+        except ValueError, OSError:
+            config = None
+        window.cloud_bridge = CloudBridge(window, database, config)
         if migrated:
             window.statusBar().showMessage("Занятия перенесены. Исходная база на D: сохранена.")
         window.show()

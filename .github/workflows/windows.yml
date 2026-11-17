@@ -11,7 +11,19 @@ permissions:
   contents: read
 
 jobs:
+  sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Test both migrations in disposable PostgreSQL
+        run: python supabase/tests/check_sql.py --desktop
+
   build:
+    needs: sql
     runs-on: windows-latest
     timeout-minutes: 25
     env:
@@ -33,6 +45,11 @@ jobs:
           uv run --no-sync ruff format --check src tests tools packaging
       - name: Test before building
         run: uv run --no-sync pytest -q --junitxml=work/test-results.xml
+      - name: Prepare public cloud configuration
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+        run: uv run --no-sync python tools/prepare_cloud_config.py
       - name: Build standalone GUI EXE
         run: uv run --no-sync python -m PyInstaller --clean --noconfirm EnglishNotes.spec
       - name: Smoke test actual EXE on Windows
@@ -79,4 +96,4 @@ jobs:
           gh release create "$RELEASE_TAG"
           dist/EnglishNotes.exe dist/SHA256SUMS.txt
           --verify-tag --title "EnglishNotes $RELEASE_TAG"
-          --notes "Windows x64. Download EnglishNotes.exe and run it. Python is not required. Local notes are stored in your Windows user profile. Cloud sync is not included."
+          --notes "Windows x64. Download EnglishNotes.exe and run it. Python is not required. Local notes are stored in your Windows user profile. Cloud sync requires the configured EnglishNotes server; offline notes remain available."

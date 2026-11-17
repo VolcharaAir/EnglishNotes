@@ -93,6 +93,8 @@ def main() -> None:
         env = os.environ.copy()
         env["LOCALAPPDATA"] = str(root / "profile")
         env["QT_QPA_PLATFORM"] = "windows"
+        env["ENGLISHNOTES_DISABLE_CLOUD"] = "1"
+        env.pop("ENGLISHNOTES_DATA_DIR", None)
         # The EXE must use its bundled interpreter and Qt plugins.
         for key in ("PYTHONPATH", "PYTHONHOME", "QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH"):
             env.pop(key, None)

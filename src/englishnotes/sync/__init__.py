@@ -1,6 +1,5 @@
-"""Reserved boundary for a future sync adapter. No cloud code runs in this release.
+"""Compatibility namespace; the implemented adapter lives in englishnotes.cloud.
 
-The local application depends only on application.ports. A future sync worker
-must use its own database connection, explicit change tracking, server-side
-authorization and conflict resolution. See docs/architecture.md.
+See cloud.engine (protocol), storage.cloud_store (durable queues),
+and ui.cloud_bridge (GUI integration). Local service ports remain independent.
 """

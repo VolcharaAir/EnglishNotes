@@ -7,6 +7,8 @@ from englishnotes.domain.errors import StorageError
 
 def data_directory() -> Path:
     """Never derive writable data paths from cwd, __file__ or the executable."""
+    if override := os.environ.get("ENGLISHNOTES_DATA_DIR"):
+        return Path(override)
     if sys.platform == "win32":
         local = os.environ.get("LOCALAPPDATA")
         base = Path(local) if local else Path.home() / "AppData" / "Local"

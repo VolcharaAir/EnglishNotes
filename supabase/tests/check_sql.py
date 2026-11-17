@@ -5,6 +5,7 @@ Does not read .env, connect to Supabase, or touch SQLite. Not wired to app start
 
 import argparse
 import concurrent.futures
+import json
 import subprocess
 import threading
 import time
@@ -16,6 +17,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--docker-host", help="Optional Docker daemon endpoint")
     parser.add_argument("--image", default="postgres:16")
+    parser.add_argument("--desktop", action="store_true", help="Also verify migration v2")
     args = parser.parse_args()
     docker = ["docker"] + (["--host=" + args.docker_host] if args.docker_host else [])
     container = "englishnotes-sql-test-" + uuid.uuid4().hex[:12]
@@ -124,6 +126,44 @@ def main() -> None:
         )
         assert attempts == "12", attempts
         print("Concurrent budget check passed: 5 attempts, 7 refusals, 12 persisted calls.")
+        if args.desktop:
+            sql((root / "tests" / "desktop_bootstrap.sql").read_text())
+            sql((root / "migrations" / "20261117000200_desktop_sync.sql").read_text())
+            sql((root / "verify_desktop.sql").read_text())
+            print(sql((root / "tests" / "desktop_security.sql").read_text()).splitlines()[-1])
+            print(sql((root / "tests" / "desktop_payloads.sql").read_text()).splitlines()[-1])
+            sql("UPDATE englishnotes_private.cloud_limits SET enabled=true,auth_hook_ready=true;")
+            u = str(uuid.uuid4())
+            sid, nid = str(uuid.uuid4()), str(uuid.uuid4())
+            sql(f"INSERT INTO auth.users VALUES('{u}');")
+
+            def as_user(expression):
+                return json.loads(
+                    sql(
+                        f"BEGIN; SET LOCAL ROLE authenticated; "
+                        f"SET LOCAL request.jwt.claim.sub='{u}'; SELECT {expression}; COMMIT;"
+                    )
+                )
+
+            assert as_user(f"public.en_create_session('{sid}','CAS')")["outcome"] == "ok"
+            assert (
+                as_user(f"public.en_write_note(gen_random_uuid(),'{nid}','{sid}',0,'n','base',0)")[
+                    "outcome"
+                ]
+                == "ok"
+            )
+            barrier = threading.Barrier(2)
+
+            def edit(text):
+                barrier.wait(timeout=20)
+                return as_user(
+                    f"public.en_write_note(gen_random_uuid(),'{nid}','{sid}',1,'n','{text}',0)"
+                )["outcome"]
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+                futures = [pool.submit(edit, text) for text in ("left", "right")]
+                assert sorted(f.result() for f in futures) == ["conflict", "ok"]
+            print("Desktop concurrent CAS: one commit, one conflict; no lost update.")
     finally:
         subprocess.run(docker + ["rm", "-f", container], capture_output=True, check=False)
 

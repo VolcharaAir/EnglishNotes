@@ -1,13 +1,20 @@
 # Build on Windows: python -m PyInstaller --clean --noconfirm EnglishNotes.spec
+import sys
 from pathlib import Path
 
+from PyInstaller.utils.hooks import collect_submodules
+
 root = Path(SPECPATH)
+config = root / "work" / "bundle" / "cloud.json"
+if not config.is_file():
+    raise SystemExit("Run tools/prepare_cloud_config.py first (or use --local).")
+backend = "Windows" if sys.platform == "win32" else ("macOS" if sys.platform == "darwin" else "SecretService")
 analysis = Analysis(
     [str(root / "packaging" / "entrypoint.py")],
     pathex=[str(root / "src")],
     binaries=[],
-    datas=[],
-    hiddenimports=[],
+    datas=[(str(config), "englishnotes/resources")],
+    hiddenimports=["keyring.backends." + backend] + (collect_submodules("win32ctypes") if sys.platform == "win32" else []),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

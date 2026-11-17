@@ -4,8 +4,9 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from englishnotes.domain.errors import StorageError
+from englishnotes.storage.cloud_schema import STATEMENTS
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 MIGRATIONS = {
     1: (
         """CREATE TABLE lessons (
@@ -25,6 +26,7 @@ MIGRATIONS = {
         "CREATE INDEX notes_by_lesson ON notes(lesson_id, deleted_at, created_at, id)",
         "CREATE INDEX lessons_by_date ON lessons(deleted_at, created_at DESC, id)",
     ),
+    2: STATEMENTS,
 }
 
 

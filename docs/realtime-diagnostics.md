@@ -25,3 +25,7 @@ WebSocket отключён, поскольку он может передава�
 а не проверка живого Supabase. После обновления два файла нужно проверить повторным
 запуском `python supabase/tests/live_desktop.py --run` на Windows с прежним .env и
 прежними work/desktop-live профилями. Тестовые личности сохранятся через vault.
+
+Повторный запуск на Windows завершился PASS: 19 живых проверок. Затем пользователь
+подтвердил двусторонний обмен двух EXE и физический offline/reopen/reconnect.
+Подробности: [Windows test report](windows-test-0.3.0.md).

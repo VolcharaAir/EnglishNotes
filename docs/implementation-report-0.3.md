@@ -1,8 +1,13 @@
 # Отчёт 0.3.0 — 17 ноября 2026
 
-Реализация подготовлена в рабочей копии. GitHub, Releases и пользовательский
-Supabase в этом этапе не изменялись. Локальные рабочие пользовательские базы
-не открывались: проверки использовали отдельные тестовые профили.
+Исходники находятся в ветке `desktop-supabase-0.3.0`. Владелец вручную применил
+миграцию Supabase, настроил hook/Realtime, собрал Windows EXE и опубликовал
+предварительный релиз `test-0.3.0`. Он подтвердил 19 живых проверок и обмен
+между двумя Windows EXE, включая физическое отключение сети и перезапуск.
+
+Доказательства и границы проверки: [Windows test report](windows-test-0.3.0.md).
+Локальные пользовательские Windows-базы агент не открывал; облачная разработка
+использовала отдельные тестовые профили.
 
 ## Реализовано
 
@@ -55,7 +60,7 @@ SQLite v2 только добавляет служебную схему и тр�
 
 | Проверка | Результат |
 |---|---|
-| pytest, Python 3.14.10 / Linux | **142 passed** (106 прежних + 36 новых) |
+| pytest, Python 3.14.10 / Linux | **152 passed** (142 базовых + 10 Realtime) |
 | Ruff lint и format | PASS |
 | Миграции v1/v2 в PostgreSQL 16.16 | PASS |
 | Большие v1 данные / JSON escaping | 6 заметок, 3 ограниченные страницы |
@@ -65,24 +70,25 @@ SQLite v2 только добавляет служебную схему и тр�
 | Две записи одной серверной версии | Один commit, один conflict |
 | PyInstaller Linux local bundle | Собран, ресурсы/backend/WebSocket включены |
 | Linux frozen startup + перемещение бинарного файла | PASS; SQLite и заметка сохранились |
-| Новая Windows EXE / Windows Credential Manager | Не запускались здесь |
-| Живые Auth/JWT/Realtime Desktop v2 в Supabase | Не запускались здесь |
+| Windows EXE / сохранение Auth через vault | Пользователь собрал и проверил на Windows |
+| Живые Auth/JWT/Realtime Desktop v2 | Пользователь предоставил PASS: 19 проверок |
+| Два Windows EXE / offline / reopen / reconnect | Пользователь подтвердил обмен и очередь 0 |
 
 Linux frozen smoke использовал Qt offscreen и принудительное завершение пустого
 редактора; он не заменяет обычное закрытие Windows EXE и ручную проверку двух ПК.
-Системный vault проверен через backend fixture, не через реальный Windows vault.
+В Linux системный vault проверен через backend fixture; владелец отдельно выполнил
+реальные Auth/refresh и EXE-проверки с Windows vault.
 SQL fixture проверяет PostgreSQL, а не настоящие JWT/GoTrue/Realtime-сервис.
 
-Новый live runner подготовлен для реальных трёх anonymous-профилей, включая
-подписки A/B и явный отказ подписки C. Запускается вручную с `--run` после настройки.
-Невыполненные живые проверки не считаются успешными.
+После исправления join_ref живой runner завершился PASS у пользователя.
+Переданные результаты не считаются запуском Supabase из облачной среды.
 
-## Для завершения развёртывания владельцем
+## Опубликованная предварительная сборка
 
-1. Резервные копии; вручную применить v2 SQL, включить Before User Created hook.
-2. Проверить Auth/Realtime limits и private channels, затем включить cloud_limits.
-3. Выполнить `supabase/verify_desktop.sql` и живой тест.
-4. Собрать настроенный EXE на Windows и проверить два компьютера по чек-листу.
+[Скачать EnglishNotes.exe](https://github.com/VolcharaAir/EnglishNotes/releases/download/test-0.3.0/EnglishNotes.exe).
+Релиз предназначен для Windows 10/11 x64. Версия macOS остаётся отдельной задачей.
+Работа GitHub Actions и автоматическая релизная сборка этим ручным выпуском
+не подтверждены. Исходники и инструкция сохраняют возможность воспроизведения.
 
 Точные шаги Dashboard/сборки: [cloud-desktop.md](cloud-desktop.md).
 Команды тестов и ручные сценарии: [cloud-testing.md](cloud-testing.md).
